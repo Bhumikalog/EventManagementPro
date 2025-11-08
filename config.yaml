@@ -1,0 +1,6 @@
+Host: db.pyhexhbrehfgjnhlefiv.supabase.co
+Port: 5432
+Database: postgres
+User: postgres
+Password: momopaglus2005
+SSL: required
