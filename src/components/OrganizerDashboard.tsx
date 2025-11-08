@@ -28,7 +28,7 @@ export default function OrganizerDashboard() {
 
   useEffect(() => {
     // subscribe to realtime changes for resources, allocations, and checkins
-    const resourceSub = supabase.channel('public:resources')
+    const resourceSub = (supabase as any).channel('public:resources')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, () => loadStats())
@@ -42,18 +42,18 @@ export default function OrganizerDashboard() {
   const loadStats = async () => {
     try {
       const [eventsRes, regsRes] = await Promise.all([
-        supabase.from('events').select('id, start_ts', { count: 'exact' }),
-        supabase.from('registrations').select('id', { count: 'exact' })
+        (supabase as any).from('events').select('id, start_ts', { count: 'exact' }),
+        (supabase as any).from('registrations').select('id', { count: 'exact' })
       ]);
 
       const upcoming = eventsRes.data?.filter(e => new Date(e.start_ts) > new Date()).length || 0;
 
       // resources counts
-      const { data: resAll } = await supabase.from('resources').select('id', { count: 'exact' });
-      const { data: resAvail } = await supabase.from('resources').select('id', { count: 'exact' }).eq('status', 'available');
-      const { data: resAlloc } = await supabase.from('resources').select('id', { count: 'exact' }).eq('status', 'allocated');
+  const { data: resAll } = await (supabase as any).from('resources').select('id', { count: 'exact' });
+  const { data: resAvail } = await (supabase as any).from('resources').select('id', { count: 'exact' }).eq('status', 'available');
+  const { data: resAlloc } = await (supabase as any).from('resources').select('id', { count: 'exact' }).eq('status', 'allocated');
 
-      const { data: checkins } = await supabase.from('checkins').select('id', { count: 'exact' }).eq('status', 'checked_in');
+  const { data: checkins } = await (supabase as any).from('checkins').select('id', { count: 'exact' }).eq('status', 'checked_in');
 
       setStats({
         totalEvents: eventsRes.count || 0,

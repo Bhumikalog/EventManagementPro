@@ -30,7 +30,8 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
   const [venues, setVenues] = useState<any[]>([]);
   const [equipment, setEquipment] = useState<any[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<string>('');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [selectedEquipmentEntries, setSelectedEquipmentEntries] = useState<Array<{ rowId: string; resourceId?: string; qty: number }>>([]);
+  const [equipmentValidationErrors, setEquipmentValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadEvents();
@@ -39,7 +40,7 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
 
   const loadResourcesForForm = async () => {
     // load available venues/rooms
-    const { data: venuesData, error: vErr } = await supabase
+    const { data: venuesData, error: vErr } = await (supabase as any)
       .from('resources')
       .select('*')
       .in('type', ['Venue', 'venue', 'Room', 'room'])
@@ -49,7 +50,7 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
     if (!vErr) setVenues(venuesData || []);
 
     // load available equipment
-    const { data: equipData, error: eErr } = await supabase
+    const { data: equipData, error: eErr } = await (supabase as any)
       .from('resources')
       .select('*')
       .eq('type', 'Equipment')
@@ -57,6 +58,49 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
       .order('name');
 
     if (!eErr) setEquipment(equipData || []);
+  };
+
+  const addEquipmentEntry = () => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    setSelectedEquipmentEntries((prev) => [...prev, { rowId: id, resourceId: undefined, qty: 1 }]);
+  };
+
+  const handleEntryResourceChange = (rowId: string, resourceId: string) => {
+    setSelectedEquipmentEntries((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, resourceId } : r)));
+    // clear any existing error for this row when resource changes
+    setEquipmentValidationErrors((prev) => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
+  };
+
+  const handleEntryQtyChange = (rowId: string, value: number) => {
+    setSelectedEquipmentEntries((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, qty: value } : r)));
+    // validate against capacity
+    const entry = selectedEquipmentEntries.find((e) => e.rowId === rowId);
+    const resourceId = entry?.resourceId;
+    const item = equipment.find((e) => e.id === resourceId);
+    if (item) {
+      if (value > (item.capacity ?? 0)) {
+        setEquipmentValidationErrors((prev) => ({ ...prev, [rowId]: `Only ${item.capacity} units of ${item.name} are available.` }));
+      } else {
+        setEquipmentValidationErrors((prev) => {
+          const next = { ...prev };
+          delete next[rowId];
+          return next;
+        });
+      }
+    }
+  };
+
+  const removeEntry = (rowId: string) => {
+    setSelectedEquipmentEntries((prev) => prev.filter((r) => r.rowId !== rowId));
+    setEquipmentValidationErrors((prev) => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
   };
 
   const loadEvents = async () => {
@@ -157,31 +201,75 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
       setTicketTypes([{ name: 'Standard', kind: 'free', price: 0 }]);
       loadEvents();
       onUpdate();
-      // After event creation/update, allocate selected resources (venue + equipment)
+      // After event creation/update, allocate selected resources (venue + equipment with quantities)
       try {
         const { data: userData } = await supabase.auth.getUser();
         const organizerId = userData?.user?.id || null;
 
-        // allocate main venue/resource
+        // allocate main venue/resource (single allocation)
         if (selectedVenue && eventId) {
-          await supabase.from('resource_allocations').insert({
+          await (supabase as any).from('resource_allocations').insert({
             resource_id: selectedVenue,
             event_id: eventId,
-            organizer_id: organizerId
+            organizer_id: organizerId,
+            allocated_at: new Date().toISOString(),
+            allocated_by: organizerId
           });
 
-          await supabase.from('resources').update({ status: 'allocated', allocated_to: eventId }).eq('id', selectedVenue);
+          await (supabase as any).from('resources').update({ status: 'allocated', allocated_to: eventId }).eq('id', selectedVenue);
         }
 
-        // allocate extra equipment
-        for (const eqId of selectedEquipment) {
-          await supabase.from('resource_allocations').insert({
-            resource_id: eqId,
-            event_id: eventId,
-            organizer_id: organizerId
-          });
-          await supabase.from('resources').update({ status: 'allocated', allocated_to: eventId }).eq('id', eqId);
+        // allocate extra equipment with quantities (based on rows added via + Add Equipment)
+        for (const entry of selectedEquipmentEntries) {
+          const eqId = entry.resourceId;
+          if (!eqId) continue; // skip empty rows
+          const qty = entry.qty ?? 1;
+          const item = equipment.find((e) => e.id === eqId);
+
+          // basic server-side trust: ensure qty <= capacity, otherwise skip and warn
+          const available = item?.capacity ?? 0;
+          if (qty > available) {
+            toast.error(`Requested ${qty} units for ${item?.name} exceeds available ${available}. Allocation skipped.`);
+            continue;
+          }
+
+          // create allocation record with notes about quantity
+          const { error: allocErr } = await (supabase as any)
+            .from('resource_allocations')
+            .insert({
+              resource_id: eqId,
+              event_id: eventId,
+              organizer_id: organizerId,
+              allocated_by: organizerId,
+              allocated_at: new Date().toISOString(),
+              notes: `Quantity Allocated: ${qty}`
+            });
+
+          if (allocErr) {
+            console.error('Failed to insert allocation for', eqId, allocErr);
+            toast.error(`Failed to allocate ${item?.name}`);
+            continue;
+          }
+
+          // reduce capacity and update status if necessary
+          const newCapacity = Math.max(0, (item?.capacity ?? 0) - qty);
+          const { error: resErr } = await (supabase as any)
+            .from('resources')
+            .update({ capacity: newCapacity, status: newCapacity === 0 ? 'allocated' : 'available', allocated_to: newCapacity === 0 ? eventId : null })
+            .eq('id', eqId);
+
+          if (resErr) {
+            console.error('Failed to update resource capacity for', eqId, resErr);
+            toast.error(`Allocation recorded but failed to update inventory for ${item?.name}`);
+          } else {
+            // update local equipment state so UI shows remaining immediately
+            setEquipment((prev) => prev.map((r) => (r.id === eqId ? { ...r, capacity: newCapacity, status: newCapacity === 0 ? 'allocated' : r.status } : r)));
+            toast.success(`Allocated ${qty} units of ${item?.name} to ${eventData.title || 'event'}. Remaining: ${newCapacity}.`);
+          }
         }
+
+        // reload resources for form to reflect updated capacities
+        loadResourcesForForm();
       } catch (err) {
         console.error('Error allocating resources after event create/update:', err);
         // non-fatal: event was created, but allocations may have failed
@@ -268,40 +356,67 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="venue_select">Select Venue / Room</Label>
-                  <Select value={selectedVenue} onValueChange={setSelectedVenue}>
-                    <SelectTrigger id="venue_select">
-                      <SelectValue placeholder="Choose a venue or room" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {venues.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.name} — {v.location || 'Unknown'} (Capacity: {v.capacity || 'N/A'})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <div>
+                        <Label htmlFor="venue_select">Select Venue / Room</Label>
+                        <Select value={selectedVenue} onValueChange={setSelectedVenue}>
+                          <SelectTrigger id="venue_select">
+                            <SelectValue placeholder="Choose a venue or room" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {venues.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.name} — {v.location || 'Unknown'} (Capacity: {v.capacity || 'N/A'})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                <div>
-                  <Label htmlFor="extra_equipment">Extra Equipment Needed (optional)</Label>
-                  <Select value={selectedEquipment.join(',')} onValueChange={(val) => setSelectedEquipment(val ? val.split(',') : [])}>
-                    <SelectTrigger id="extra_equipment">
-                      <SelectValue placeholder="Select equipment (multi-select supported)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {equipment.map((eq) => (
-                        <SelectItem key={eq.id} value={eq.id}>
-                          {eq.name} — {eq.location || 'Unknown'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">Tip: hold Ctrl/Cmd to multi-select (UI depends on Select implementation).</p>
-                </div>
-              </div>
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Additional Resources (Optional)</Label>
+                          <Button type="button" size="sm" variant="outline" onClick={addEquipmentEntry} disabled={loading}>
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Equipment
+                          </Button>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {selectedEquipmentEntries.map((entry) => {
+                            const item = equipment.find((e) => e.id === entry.resourceId);
+                            return (
+                              <div key={entry.rowId} className="flex items-center gap-3">
+                                <div className="flex-1">
+                                  <Select value={entry.resourceId ?? ''} onValueChange={(val) => handleEntryResourceChange(entry.rowId, val)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select equipment" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {equipment.map((eq) => (
+                                        <SelectItem key={eq.id} value={eq.id}>
+                                          {eq.name} — {eq.location || 'Unknown'} (Available: {eq.capacity ?? 0})
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="w-32">
+                                  <Label className="text-xs">Quantity</Label>
+                                  <Input type="number" min={1} value={entry.qty} max={item?.capacity ?? 1} onChange={(e) => handleEntryQtyChange(entry.rowId, Math.max(1, Number(e.target.value) || 1))} />
+                                  {equipmentValidationErrors[entry.rowId] && (
+                                    <p className="text-xs text-red-600 mt-1">⚠️ {equipmentValidationErrors[entry.rowId]}</p>
+                                  )}
+                                </div>
+
+                                <Button type="button" variant="ghost" size="icon" onClick={() => removeEntry(entry.rowId)} disabled={loading}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -468,7 +583,7 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading || Object.keys(equipmentValidationErrors).length > 0}>
                   {loading ? (editingEvent ? 'Updating...' : 'Creating...') : (editingEvent ? 'Update Event' : 'Create Event')}
                 </Button>
               </div>

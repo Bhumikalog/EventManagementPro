@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import {
@@ -48,6 +49,7 @@ export function ResourceManager() {
   const [allocations, setAllocations] = useState<Record<string, ResourceAllocation>>({});
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { toast: uiToast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [formData, setFormData] = useState({
@@ -59,12 +61,20 @@ export function ResourceManager() {
 
   useEffect(() => {
     loadResources();
+    const channel = supabase
+      .channel('public:resources')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => loadResources())
+      .subscribe();
+
+    return () => {
+      try { supabase.removeChannel(channel); } catch (e) { /* ignore */ }
+    }
   }, []);
 
   const loadResources = async () => {
     setLoadError(null);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('resources')
         .select('*')
         .order('name');
@@ -87,7 +97,7 @@ export function ResourceManager() {
       // build allocation map from resource_allocations table for allocated resources
       const allocatedIds = (data || []).filter((r: any) => r.status === 'allocated').map((r: any) => r.id);
       if (allocatedIds.length > 0) {
-        const { data: allocationData } = await supabase
+        const { data: allocationData } = await (supabase as any)
           .from('resource_allocations')
           .select('resource_id, event_id, allocated_at, events(title, start_time)')
           .in('resource_id', allocatedIds as any[]);
@@ -156,7 +166,7 @@ export function ResourceManager() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this resource?')) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('resources')
       .delete()
       .eq('id', id);

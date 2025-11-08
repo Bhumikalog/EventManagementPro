@@ -28,7 +28,7 @@ export default function EventCheckIn() {
   }, [selectedEventId]);
 
   const loadEvents = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('events')
       .select('id, title, start_ts')
       .order('start_ts', { ascending: true });
@@ -43,7 +43,7 @@ export default function EventCheckIn() {
 
   const loadRegistrations = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('registrations')
       .select(`
         *,
@@ -64,7 +64,7 @@ export default function EventCheckIn() {
 
   const handleCheckIn = async (registrationId: string) => {
     // Mark registration as checked in
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('registrations')
       .update({ checked_in_at: new Date().toISOString() })
       .eq('id', registrationId);
@@ -80,7 +80,7 @@ export default function EventCheckIn() {
 
     try {
       // Insert a checkin row to persist the check-in event for reporting
-      await supabase.from('checkins').insert({
+      await (supabase as any).from('checkins').insert({
         registration_id: registrationId,
         participant_id: reg?.user_id ?? null,
         event_id: reg?.event_id ?? null,

@@ -4,7 +4,6 @@ import { ResourceManager } from "@/components/resource-management/ResourceManage
 import { AllocationManager } from "@/components/resource-management/AllocationManager";
 import { CheckInSystem } from "@/components/resource-management/CheckInSystem";
 import { ReportsManager } from "@/components/resource-management/ReportsManager";
-import { SystemTester } from "@/components/resource-management/SystemTester";
 import { ResourceDashboard } from "@/components/resource-management/ResourceDashboard";
 import { MapPin, Users, QrCode, BarChart3, Settings, Home } from "lucide-react";
 
@@ -45,10 +44,6 @@ const ResourceManagement = () => {
               <BarChart3 className="h-4 w-4" />
               Reports
             </TabsTrigger>
-            <TabsTrigger value="testing" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Testing
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -69,10 +64,6 @@ const ResourceManagement = () => {
 
           <TabsContent value="reports" className="space-y-6">
             <ReportsManager />
-          </TabsContent>
-
-          <TabsContent value="testing" className="space-y-6">
-            <SystemTester />
           </TabsContent>
         </Tabs>
       </div>
