@@ -3,11 +3,10 @@ project_id = "pyhexhbrehfgjnhlefiv"
 [functions.create-razorpay-order]
 verify_jwt = false
 
-# Environment variables for Razorpay integration (test credentials)
-env = { RAZORPAY_KEY_ID = "rzp_test_RBYH4WpRP9vHzY", RAZORPAY_KEY_SECRET = "R5P0ycsysTq5OzX8nIt561Ja" }
 
 [functions.verify-payment]
-verify_jwt = false
+verify_jwt = false
 
 # If verification needs access to Razorpay keys, expose them here as well
-env = { RAZORPAY_KEY_ID = "rzp_test_RBYH4WpRP9vHzY", RAZORPAY_KEY_SECRET = "R5P0ycsysTq5OzX8nIt561Ja" }
+RAZORPAY_KEY_ID = "rzp_test_RBYH4WpRP9vHzY"
+RAZORPAY_KEY_SECRET = "R5P0ycsysTq5OzX8nIt561Ja" 

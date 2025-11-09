@@ -28,7 +28,7 @@ export default function OrganizerDashboard() {
 
   useEffect(() => {
     // subscribe to realtime changes for resources, allocations, and checkins
-    const resourceSub = supabase.channel('public:resources')
+    const resourceSub = (supabase as any).channel('public:resources')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, () => loadStats())

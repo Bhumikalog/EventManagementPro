@@ -48,7 +48,7 @@ export function AllocationManager() {
   const loadData = async () => {
     try {
       // Load available resources
-      const { data: resourcesData, error: resError } = await supabase
+      const { data: resourcesData, error: resError } = await (supabase as any)
         .from('resources')
         .select('*')
         .eq('status', 'available')
@@ -67,7 +67,7 @@ export function AllocationManager() {
       if (eventsError) throw eventsError;
 
       // Allocations for organizer
-      const { data: allocationsData, error: allocError } = await supabase
+      const { data: allocationsData, error: allocError } = await (supabase as any)
         .from('resource_allocations')
         .select(`
           id,
@@ -104,7 +104,7 @@ export function AllocationManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('resource_allocations')
         .insert({
           resource_id: selectedResource,
@@ -147,7 +147,7 @@ export function AllocationManager() {
     try {
 
       // find allocation to get resource id
-      const { data: alloc } = await supabase
+      const { data: alloc } = await (supabase as any)
         .from('resource_allocations')
         .select('resource_id')
         .eq('id', id)
@@ -164,7 +164,7 @@ export function AllocationManager() {
 
       // reset resource status to available
       if (resourceId) {
-        const { error: resErr } = await supabase
+        const { error: resErr } = await (supabase as any)
           .from('resources')
           .update({ status: 'available', allocated_to: null })
           .eq('id', resourceId);
@@ -189,80 +189,6 @@ export function AllocationManager() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Allocate Resources to Events</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {events.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                You need to create events first before allocating resources.
-              </p>
-              <Badge variant="outline">Create events in the Events tab</Badge>
-            </div>
-          ) : resources.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                No available resources to allocate.
-              </p>
-              <Badge variant="outline">All resources are currently allocated</Badge>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Select Resource</label>
-                  <Select value={selectedResource} onValueChange={setSelectedResource}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a resource" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {resources.map((resource) => (
-                        <SelectItem key={resource.id} value={resource.id}>
-                          {resource.name} ({resource.type}) - {resource.location}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Select Event</label>
-                  <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose an event" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {events.map((event) => (
-                        <SelectItem key={event.id} value={event.id}>
-                          {event.title} - {new Date(event.start_ts).toLocaleDateString()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Notes (Optional)</label>
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add any notes about this allocation..."
-                  rows={3}
-                />
-              </div>
-
-              <Button onClick={handleAllocate} disabled={loading} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                {loading ? 'Allocating...' : 'Allocate Resource'}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Your Resource Allocations ({allocations.length})</CardTitle>

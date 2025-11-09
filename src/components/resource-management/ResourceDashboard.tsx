@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,29 +41,84 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
     utilizationRate: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const realtimeChannelRef = useRef<any>(null);
 
   useEffect(() => {
     fetchDashboardStats();
 
+    // subscribe to realtime changes for resources, resource_allocations, checkins, and registrations
+    const channel = supabase.channel('public:resource-management')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => fetchDashboardStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => fetchDashboardStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, () => fetchDashboardStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => fetchDashboardStats())
+      .subscribe();
+
+    realtimeChannelRef.current = channel;
+
     const interval = setInterval(fetchDashboardStats, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      try {
+        if (realtimeChannelRef.current) {
+          supabase.removeChannel(realtimeChannelRef.current);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
   }, []);
 
   const fetchDashboardStats = async () => {
+    setIsLoading(true);
     try {
-      // Placeholder stats - will be populated once database tables are created
-      setStats({
-        totalResources: 0,
-        availableResources: 0,
-        allocatedResources: 0,
-        totalEvents: 0,
-        upcomingEvents: 0,
-        totalTickets: 0,
-        checkedInTickets: 0,
-        pendingCheckIns: 0,
-        utilizationRate: 0,
-      });
+      // total resources
+      const { count: totalResourcesCount } = await (supabase as any)
+        .from('resources')
+        .select('id', { count: 'exact', head: true });
+
+      // available
+      const { count: availableCount } = await (supabase as any)
+        .from('resources')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'available');
+
+      // allocated
+      const { count: allocatedCount } = await (supabase as any)
+        .from('resources')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'allocated');
+
+      // checked in (from checkins table where status = 'checked_in')
+      const { count: checkedInCount } = await (supabase as any)
+        .from('checkins')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'checked_in');
+
+      // total confirmed registrations
+      const { count: totalConfirmed } = await (supabase as any)
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'confirmed');
+
+      const totalResources = totalResourcesCount ?? 0;
+      const availableResources = availableCount ?? 0;
+      const allocatedResources = allocatedCount ?? 0;
+      const checkedInTickets = checkedInCount ?? 0;
+      const pendingCheckIns = Math.max((totalConfirmed ?? 0) - checkedInTickets, 0);
+
+      const utilizationRate = totalResources > 0 ? (allocatedResources / totalResources) * 100 : 0;
+
+      setStats((prev) => ({
+        ...prev,
+        totalResources,
+        availableResources,
+        allocatedResources,
+        checkedInTickets,
+        pendingCheckIns,
+        utilizationRate,
+      }));
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
     } finally {
@@ -73,7 +128,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-6">
@@ -101,9 +156,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Resources</p>
               <p className="text-2xl font-bold">{stats.totalResources}</p>
-              <p className="text-xs text-muted-foreground">
-                {stats.availableResources} available, {stats.allocatedResources} allocated
-              </p>
+              <p className="text-xs text-muted-foreground">{stats.availableResources} available, {stats.allocatedResources} allocated</p>
             </div>
             <MapPin className="h-8 w-8 text-muted-foreground" />
           </CardContent>
@@ -115,10 +168,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
               <p className="text-sm font-medium text-muted-foreground">Resource Utilization</p>
               <p className="text-2xl font-bold text-info">{stats.utilizationRate.toFixed(1)}%</p>
               <div className="w-full bg-muted rounded-full h-2 mt-2">
-                <div
-                  className="bg-info h-2 rounded-full"
-                  style={{ width: `${stats.utilizationRate}%` }}
-                ></div>
+                <div className="bg-info h-2 rounded-full" style={{ width: `${stats.utilizationRate}%` }} />
               </div>
             </div>
             <TrendingUp className="h-8 w-8 text-info" />
@@ -128,37 +178,9 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Events</p>
-              <p className="text-2xl font-bold">{stats.totalEvents}</p>
-              <p className="text-xs text-success">
-                {stats.upcomingEvents} upcoming
-              </p>
-            </div>
-            <Calendar className="h-8 w-8 text-muted-foreground" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Tickets</p>
-              <p className="text-2xl font-bold">{stats.totalTickets}</p>
-              <p className="text-xs text-muted-foreground">
-                Issued for all events
-              </p>
-            </div>
-            <Users className="h-8 w-8 text-muted-foreground" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
               <p className="text-sm font-medium text-muted-foreground">Checked In</p>
               <p className="text-2xl font-bold text-success">{stats.checkedInTickets}</p>
-              <p className="text-xs text-muted-foreground">
-                Successful check-ins
-              </p>
+              <p className="text-xs text-muted-foreground">Successful check-ins</p>
             </div>
             <CheckCircle className="h-8 w-8 text-success" />
           </CardContent>
@@ -169,35 +191,9 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
             <div>
               <p className="text-sm font-medium text-muted-foreground">Pending Check-ins</p>
               <p className="text-2xl font-bold text-warning">{stats.pendingCheckIns}</p>
-              <p className="text-xs text-muted-foreground">
-                Awaiting check-in
-              </p>
+              <p className="text-xs text-muted-foreground">Awaiting check-in</p>
             </div>
             <Clock className="h-8 w-8 text-warning" />
-          </CardContent>
-        </Card>
-
-        <Card className="md:col-span-2">
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">System Status</p>
-              <p className="text-2xl font-bold text-success">All Systems Operational</p>
-              <div className="flex items-center gap-4 mt-2">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-success rounded-full"></div>
-                  <span className="text-xs">Database</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-success rounded-full"></div>
-                  <span className="text-xs">API Functions</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-success rounded-full"></div>
-                  <span className="text-xs">Check-in System</span>
-                </div>
-              </div>
-            </div>
-            <Activity className="h-8 w-8 text-success" />
           </CardContent>
         </Card>
       </div>
@@ -240,3 +236,4 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
     </div>
   );
 }
+// testing sync trigger
