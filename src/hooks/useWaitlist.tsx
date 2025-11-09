@@ -11,6 +11,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // ✅ Fetch waitlist for event
   const fetchWaitlist = async () => {
     try {
       let query = supabase
@@ -24,20 +25,18 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
         .eq('registration_status', 'waitlisted')
         .order('created_at', { ascending: true });
 
-      if (eventId) {
-        query = query.eq('event_id', eventId);
-      }
+      if (eventId) query = query.eq('event_id', eventId);
 
       const { data, error } = await query;
-
       if (error) throw error;
+
       setWaitlist(data || []);
     } catch (error: any) {
       console.error('Error fetching waitlist:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch waitlist',
-        variant: 'destructive'
+        variant: 'destructive',
       });
     }
   };
@@ -46,6 +45,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
     fetchWaitlist();
   }, [eventId]);
 
+  // ✅ Add to waitlist
   const addToWaitlist = async (registrationId: string) => {
     setLoading(true);
     try {
@@ -58,7 +58,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
 
       toast({
         title: 'Success',
-        description: 'Added to waitlist'
+        description: 'Added to waitlist',
       });
 
       await fetchWaitlist();
@@ -67,26 +67,55 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
       toast({
         title: 'Error',
         description: error.message,
-        variant: 'destructive'
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ Promote from waitlist using Edge Function (service role)
   const promoteFromWaitlist = async (registrationId: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('registrations')
-        .update({ registration_status: 'confirmed' })
-        .eq('id', registrationId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: 'Authentication Error',
+          description: 'User session not found. Please sign in again.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      if (error) throw error;
+      console.log('Promoting registration via Edge Function:', registrationId);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/attendee-management`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            action: 'waitlist',
+            waitlist_action: 'promote_from_waitlist',
+            registration_id: registrationId,
+          }),
+        }
+      );
+
+      const result = await response.json().catch(() => ({}));
+      console.log('Promote response:', response.status, result);
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to promote from waitlist.');
+      }
 
       toast({
         title: 'Success',
-        description: 'Promoted from waitlist to confirmed'
+        description: 'User promoted from waitlist to confirmed',
       });
 
       await fetchWaitlist();
@@ -94,14 +123,15 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
       console.error('Error promoting from waitlist:', error);
       toast({
         title: 'Error',
-        description: error.message,
-        variant: 'destructive'
+        description: error.message || 'Promotion failed',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ Remove from waitlist
   const removeFromWaitlist = async (registrationId: string) => {
     setLoading(true);
     try {
@@ -114,7 +144,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
 
       toast({
         title: 'Success',
-        description: 'Removed from waitlist'
+        description: 'Removed from waitlist',
       });
 
       await fetchWaitlist();
@@ -123,7 +153,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
       toast({
         title: 'Error',
         description: error.message,
-        variant: 'destructive'
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -136,6 +166,6 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
     addToWaitlist,
     promoteFromWaitlist,
     removeFromWaitlist,
-    refreshWaitlist: fetchWaitlist
+    refreshWaitlist: fetchWaitlist,
   };
 };

@@ -126,12 +126,16 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
         <CardDescription className="space-y-1">
           <div className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {format(new Date(event.start_ts), 'PPp')}
+            {event.start_ts ? format(new Date(event.start_ts), 'PPp') : 'Date TBD'}
           </div>
           <div className="flex items-center gap-1">
             <MapPin className="h-3 w-3" />
-            {event.venue_name}
-            {event.venue_location && ` - ${event.venue_location}`}
+            {event.venue?.name ?? event.venue_name ?? 'Venue TBD'}
+            {event.venue?.location
+              ? ` - ${event.venue.location}`
+              : event.venue_location
+              ? ` - ${event.venue_location}`
+              : ''}
           </div>
           {event.capacity && (
             <div className="flex items-center gap-1">

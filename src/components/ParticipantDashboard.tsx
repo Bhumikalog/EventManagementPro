@@ -21,7 +21,9 @@ export default function ParticipantDashboard() {
         .from('events')
         .select(`
           *,
-          ticket_types(*)
+          ticket_types(*),
+          venue:venues(*),
+          organizer:profiles(display_name, email)
         `)
         .eq('status', 'active')
         .gte('start_ts', new Date().toISOString())
