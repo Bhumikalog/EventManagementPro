@@ -2,7 +2,7 @@ name: CD — push local code to final repo (via PR)
 
 on:
   push:
-    branches: [ main ]  # runs when you push from local to main
+    branches: [ main , ci-test]  # runs when you push from local to main
 
 jobs:
   push-to-final:
