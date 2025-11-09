@@ -194,10 +194,21 @@ export default function Payment() {
       }
 
       toast.success('Payment successful!')
+
+      // MODIFICATION: Generate QR code data on the client immediately,
+      // just like the free registration flow.
+      const qrCodeData = JSON.stringify({
+        order_id: response.data.order_id, // Use the order ID from the successful response
+        event_id: event.id,              // Use event from location.state
+        user_id: user!.id,               // Use user from useAuth()
+        ticket_type_id: ticketType.id,   // Use ticketType from location.state
+        timestamp: new Date().toISOString()
+      });
+
       navigate('/ticket-success', {
         state: {
           orderId: response.data.order_id,
-          qrCodeData: response.data.qr_code_data
+          qrCodeData: qrCodeData // Pass the client-generated QR data
         }
       })
     } catch (err: any) {

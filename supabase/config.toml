@@ -3,10 +3,5 @@ project_id = "pyhexhbrehfgjnhlefiv"
 [functions.create-razorpay-order]
 verify_jwt = false
 
-
 [functions.verify-payment]
-verify_jwt = false
-
-# If verification needs access to Razorpay keys, expose them here as well
-RAZORPAY_KEY_ID = "rzp_test_RBYH4WpRP9vHzY"
-RAZORPAY_KEY_SECRET = "R5P0ycsysTq5OzX8nIt561Ja" 
+verify_jwt = false
