@@ -1,16 +1,15 @@
-name: CD — push local code to final repo
+name: CD — push local code to final repo (via PR)
 
-# Run this when you push from your local machine to main
 on:
   push:
-    branches: [ main , ci-test]
+    branches: [ main ]  # runs when you push from local to main
 
 jobs:
   push-to-final:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout current repo
+      - name: Checkout source repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -23,7 +22,7 @@ jobs:
       - name: Clone destination repo (PESTechnology)
         env:
           TARGET_REPO: ${{ secrets.TARGET_REPO }}          # pestechnology/... repo name
-          TARGET_PAT: ${{ secrets.TARGET_PAT }}       # fine-grained PAT
+          TARGET_PAT: ${{ secrets.TARGET_PAT }}       # fine-grained PAT with write access
         run: |
           git clone https://x-access-token:${TARGET_PAT}@github.com/${TARGET_REPO}.git target-repo
           ls -la target-repo
@@ -36,11 +35,29 @@ jobs:
             --exclude='target-repo' \
             ./ target-repo/
 
+      - name: Commit and push to new branch
+        env:
+          TARGET_REPO_PAT: ${{ secrets.TARGET_PAT }}
+        run: |
           cd target-repo
+          BRANCH="sync-${GITHUB_RUN_ID}"
+          git checkout -b $BRANCH
           git add -A
           if git diff --staged --quiet; then
             echo "No changes to push"
             exit 0
           fi
-          git commit -m "ci(cd): auto-sync from $GITHUB_REPOSITORY @ $GITHUB_SHA"
-          git push origin main
+          git commit -m "ci(cd): auto-sync from ${GITHUB_REPOSITORY} @ ${GITHUB_SHA}"
+          git push origin $BRANCH
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.TARGET_PAT }}
+          TARGET_REPO: ${{ secrets.TARGET_REPO }}
+        run: |
+          gh pr create \
+            --repo ${TARGET_REPO} \
+            --head $BRANCH \
+            --base main \
+            --title "Automated Sync: ${GITHUB_REPOSITORY}" \
+            --body "This PR was auto-generated from the latest push in **${GITHUB_REPOSITORY}** at commit ${GITHUB_SHA}."
