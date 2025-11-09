@@ -1,0 +1,46 @@
+name: CD — push local code to final repo
+
+# Run this when you push from your local machine to main
+on:
+  push:
+    branches: [ main , ci-test]
+
+jobs:
+  push-to-final:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone destination repo (PESTechnology)
+        env:
+          TARGET_REPO: ${{ secrets.TARGET_REPO }}          # pestechnology/... repo name
+          TARGET_PAT: ${{ secrets.TARGET_PAT }}       # fine-grained PAT
+        run: |
+          git clone https://x-access-token:${TARGET_PAT}@github.com/${TARGET_REPO}.git target-repo
+          ls -la target-repo
+
+      - name: Sync files to destination repo
+        run: |
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github/workflows/cd-to-final.yml' \
+            --exclude='target-repo' \
+            ./ target-repo/
+
+          cd target-repo
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to push"
+            exit 0
+          fi
+          git commit -m "ci(cd): auto-sync from $GITHUB_REPOSITORY @ $GITHUB_SHA"
+          git push origin main
