@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Ticket} from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import QRCode from 'react-qr-code';
@@ -70,7 +70,7 @@ export default function MyRegistrations() {
   };
 
   // ✅ Cancel registration + promote next waitlisted participant (via Edge Function)
-  const handleCancel = async (registrationId: string, ticketTypeId: string, eventId: string) => {
+  const handleCancel = async (registrationId: string, eventId: string) => {
     const confirmCancel = confirm('Are you sure you want to cancel this registration?');
     if (!confirmCancel) return;
 
@@ -87,6 +87,10 @@ export default function MyRegistrations() {
       const functionUrl =
         import.meta.env.VITE_ATTENDEE_MANAGEMENT_URL ||
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/attendee-management`;
+      console.log('🧩 Cancel payload:', {
+      registration_id: registrationId,
+      event_id: eventId,
+    });
 
       // 3️⃣ Call Edge Function to handle cancellation + promotion
       const response = await fetch(functionUrl, {
@@ -99,7 +103,6 @@ export default function MyRegistrations() {
           action: 'cancel_registration',
           registration_id: registrationId,
           event_id: eventId,
-          ticket_type_id: ticketTypeId,
         }),
       });
 
@@ -192,7 +195,17 @@ export default function MyRegistrations() {
                     variant="destructive"
                     size="sm"
                     disabled={processingId === reg.id}
-                    onClick={() => handleCancel(reg.id, reg.ticket_type_id, reg.event_id)}
+                    onClick={() => {
+                    console.log('Cancelling with:', {
+                      regId: reg.id,
+                      eventId: reg.event_id || reg.events?.id,
+                    });
+                    handleCancel(
+                      reg.id,
+                      reg.event_id || reg.events?.id
+                    );
+                  }}
+
                   >
                     Cancel
                   </Button>

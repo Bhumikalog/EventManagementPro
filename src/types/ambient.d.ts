@@ -6,6 +6,7 @@ declare module 'lucide-react' {
   export const Users: any;
   export const Calendar: any;
   export const CheckCircle: any;
+  export const Ticket: any;
   export const Clock: any;
   export const TrendingUp: any;
   export const Activity: any;
