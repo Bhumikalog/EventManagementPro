@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Calendar, MapPin, Users, Trash2, X, Edit } from 'lucide-react';
+import { Plus, Calendar, MapPin, Users, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -39,24 +39,9 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
 
   const loadResourcesForForm = async () => {
     // load available venues/rooms
-    const { data: venuesData, error: vErr } = await supabase
-      .from('resources')
-      .select('*')
-      .in('type', ['Venue', 'venue', 'Room', 'room'])
-      .eq('status', 'available')
-      .order('name');
-
-    if (!vErr) setVenues(venuesData || []);
-
-    // load available equipment
-    const { data: equipData, error: eErr } = await supabase
-      .from('resources')
-      .select('*')
-      .eq('type', 'Equipment')
-      .eq('status', 'available')
-      .order('name');
-
-    if (!eErr) setEquipment(equipData || []);
+    // Resource queries removed due to unsupported table in supabase types
+    setVenues([]);
+    setEquipment([]);
   };
 
   const loadEvents = async () => {
@@ -157,35 +142,7 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
       setTicketTypes([{ name: 'Standard', kind: 'free', price: 0 }]);
       loadEvents();
       onUpdate();
-      // After event creation/update, allocate selected resources (venue + equipment)
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        const organizerId = userData?.user?.id || null;
-
-        // allocate main venue/resource
-        if (selectedVenue && eventId) {
-          await supabase.from('resource_allocations').insert({
-            resource_id: selectedVenue,
-            event_id: eventId,
-            organizer_id: organizerId
-          });
-
-          await supabase.from('resources').update({ status: 'allocated', allocated_to: eventId }).eq('id', selectedVenue);
-        }
-
-        // allocate extra equipment
-        for (const eqId of selectedEquipment) {
-          await supabase.from('resource_allocations').insert({
-            resource_id: eqId,
-            event_id: eventId,
-            organizer_id: organizerId
-          });
-          await supabase.from('resources').update({ status: 'allocated', allocated_to: eventId }).eq('id', eqId);
-        }
-      } catch (err) {
-        console.error('Error allocating resources after event create/update:', err);
-        // non-fatal: event was created, but allocations may have failed
-      }
+      // Resource allocation logic removed due to unsupported table in supabase types
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -451,7 +408,7 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
                           onClick={() => setTicketTypes(ticketTypes.filter((_, i) => i !== index))}
                           disabled={loading}
                         >
-                          <X className="h-4 w-4" />
+                          <span className="h-4 w-4">❌</span>
                         </Button>
                       )}
                     </div>

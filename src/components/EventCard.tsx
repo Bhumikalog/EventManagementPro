@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin, Users, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -33,7 +33,7 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
       .eq('user_id', user.id)
       .eq('event_id', event.id)
       .eq('ticket_type_id', ticketType.id)
-      .eq('status', 'confirmed')
+      .eq('registration_status', 'confirmed')
       .maybeSingle();
 
     if (existing) {
@@ -55,28 +55,25 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
     // For free tickets, register directly
     setRegistering(true);
     try {
-      // Check if event is at capacity
-      const confirmedCount = await supabase
-        .from('registrations')
-        .select('id', { count: 'exact', head: true })
-        .eq('event_id', event.id)
-        .eq('status', 'confirmed');
-
-      const isAtCapacity = ticketType.capacity && confirmedCount.count >= ticketType.capacity;
-      
-      // Create registration first
-      const { data: registration, error: regError } = await supabase
-        .from('registrations')
-        .insert({
-          user_id: user.id,
+  const { data: { session } } = await supabase.auth.getSession();
+  // Use the deployed attendee-management function URL from env
+  const response = await fetch(import.meta.env.VITE_ATTENDEE_MANAGEMENT_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'create_registration',
           event_id: event.id,
-          ticket_type_id: ticketType.id,
-          status: isAtCapacity ? 'waitlisted' : 'confirmed'
+          user_id: user.id,
+          ticket_type_id: ticketType.id
         })
-        .select()
-        .single();
-
-      if (regError) throw regError;
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Registration failed');
+      const registration = result.data;
 
       // Generate QR code data
       const qrCodeData = JSON.stringify({
@@ -109,7 +106,7 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
       // Increment ticket sold count
       await supabase.rpc('increment_ticket_sold_count', { ticket_id: ticketType.id });
 
-      if (isAtCapacity) {
+      if (registration.registration_status === 'waitlisted') {
         toast.success('Event is full. You have been added to the waitlist!');
       } else {
         toast.success('Successfully registered for event!');
@@ -151,7 +148,7 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
         
         <div className="space-y-2">
           <div className="flex items-center gap-2 mb-2">
-            <Ticket className="h-4 w-4 text-muted-foreground" />
+            <span className="h-4 w-4 text-muted-foreground">🎟️</span>
             <span className="text-sm font-medium">Available Tickets</span>
           </div>
           

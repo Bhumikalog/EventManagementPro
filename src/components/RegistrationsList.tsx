@@ -60,7 +60,7 @@ export default function RegistrationsList() {
                     <TableHead>Event</TableHead>
                     <TableHead>Event Date</TableHead>
                     <TableHead>Ticket Type</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Registration Status</TableHead>
                     <TableHead>Check-In</TableHead>
                     <TableHead>Registered</TableHead>
                   </TableRow>
@@ -80,8 +80,8 @@ export default function RegistrationsList() {
                       </TableCell>
                       <TableCell>{reg.ticket_type?.name}</TableCell>
                       <TableCell>
-                        <Badge variant={reg.status === 'confirmed' ? 'default' : 'secondary'}>
-                          {reg.status}
+                        <Badge variant={reg.registration_status === 'confirmed' ? 'default' : 'secondary'}>
+                          {reg.registration_status}
                         </Badge>
                       </TableCell>
                       <TableCell>
