@@ -125,7 +125,14 @@ Deno.serve(async (req) => {
     }
     
     // THIS IS THE FIX: The QR data is the registration ID
-    const qrData = registrationId;
+    // THIS IS THE FIX: The QR data is the JSON payload
+const qrData = JSON.stringify({
+  order_id: order.id, // Use the order ID
+  event_id: order.event_id,
+  user_id: user.id,
+  ticket_type_id: order.ticket_type_id,
+  timestamp: new Date().toISOString()
+});
 
     // Link registration to order
     if (registrationId) {
