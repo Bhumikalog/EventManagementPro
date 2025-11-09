@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ interface EventCardProps {
 
 export default function EventCard({ event, onRegister }: EventCardProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Initialize navigate
   const [registering, setRegistering] = useState(false);
 
   const handleRegister = async (ticketType: any) => {
@@ -77,7 +77,7 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
 
       // Generate QR code data
       const qrCodeData = JSON.stringify({
-        order_id: registration.id,
+        order_id: registration.id, // Using registration_id as the unique identifier for the QR
         event_id: event.id,
         user_id: user.id,
         ticket_type_id: ticketType.id,
@@ -85,7 +85,8 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
       });
 
       // Create order with QR code for free ticket
-      const { error: orderError } = await supabase
+      // MODIFICATION: Added .select().single() to get the new order ID
+      const { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: user.id,
@@ -96,7 +97,9 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
           currency: 'INR',
           payment_status: 'completed',
           qr_code_data: qrCodeData
-        });
+        })
+        .select()
+        .single(); // Get the newly created order
 
       if (orderError) {
         console.error('Order creation error:', orderError);
@@ -106,12 +109,21 @@ export default function EventCard({ event, onRegister }: EventCardProps) {
       // Increment ticket sold count
       await supabase.rpc('increment_ticket_sold_count', { ticket_id: ticketType.id });
 
+      // MODIFICATION: Navigate to success page if confirmed, otherwise show toast
       if (registration.registration_status === 'waitlisted') {
         toast.success('Event is full. You have been added to the waitlist!');
+        onRegister(); // Reload events page to show waitlist status
       } else {
         toast.success('Successfully registered for event!');
+        // Navigate to the success page with the new order ID and QR data
+        navigate('/ticket-success', {
+          state: {
+            orderId: newOrder.id,
+            qrCodeData: qrCodeData
+          }
+        });
       }
-      onRegister();
+      // onRegister(); // Removed: Don't call this if navigating
     } catch (error: any) {
       toast.error(error.message || 'Failed to register');
     } finally {

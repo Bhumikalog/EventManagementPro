@@ -89,30 +89,6 @@ Deno.serve(async (req) => {
       throw new Error('Order not found')
     }
 
-    // Generate QR code data
-    const qrData = JSON.stringify({
-      order_id: order.id,
-      event_id: order.event_id,
-      user_id: order.user_id,
-      timestamp: new Date().toISOString()
-    })
-
-    // Update order with payment details
-    const { error: updateError } = await supabaseClient
-      .from('orders')
-      .update({
-        payment_status: 'completed',
-        razorpay_payment_id,
-        razorpay_signature,
-        qr_code_data: qrData
-      })
-      .eq('id', order_id)
-
-    if (updateError) {
-      console.error('Failed to update order:', updateError)
-      throw new Error('Failed to update order')
-    }
-
     // Create registration if it doesn't exist
     const { data: existingReg } = await supabaseClient
       .from('registrations')
@@ -147,6 +123,9 @@ Deno.serve(async (req) => {
         })
       }
     }
+    
+    // THIS IS THE FIX: The QR data is the registration ID
+    const qrData = registrationId;
 
     // Link registration to order
     if (registrationId) {
@@ -156,13 +135,29 @@ Deno.serve(async (req) => {
         .eq('id', order_id)
     }
 
+    // Update order with payment details
+    const { error: updateError } = await supabaseClient
+      .from('orders')
+      .update({
+        payment_status: 'completed',
+        razorpay_payment_id,
+        razorpay_signature,
+        qr_code_data: qrData // Save the registration ID as the QR data
+      })
+      .eq('id', order_id)
+
+    if (updateError) {
+      console.error('Failed to update order:', updateError)
+      throw new Error('Failed to update order')
+    }
+
     console.log('Payment verified successfully:', order_id)
 
     return new Response(
       JSON.stringify({
         success: true,
         order_id: order.id,
-        qr_code_data: qrData
+        qr_code_data: qrData // Return the registration ID
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
