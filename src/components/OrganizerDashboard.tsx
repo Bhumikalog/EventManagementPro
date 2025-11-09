@@ -41,28 +41,28 @@ export default function OrganizerDashboard() {
 
   const loadStats = async () => {
     try {
-      const [eventsRes, regsRes] = await Promise.all([
-        (supabase as any).from('events').select('id, start_ts', { count: 'exact' }),
-        (supabase as any).from('registrations').select('id', { count: 'exact' })
+      const [eventsRes, regsRes, resourcesRes, allocationsRes, checkinsRes] = await Promise.all([
+        supabase.from('events').select('id, start_ts', { count: 'exact' }),
+        supabase.from('registrations').select('id', { count: 'exact' }),
+        (supabase as any).from('resources').select('id, registration_status', { count: 'exact' }),
+        (supabase as any).from('resource_allocations').select('id', { count: 'exact' }),
+        (supabase as any).from('checkins').select('id', { count: 'exact' })
       ]);
 
-      const upcoming = eventsRes.data?.filter(e => new Date(e.start_ts) > new Date()).length || 0;
-
-      // resources counts
-  const { data: resAll } = await (supabase as any).from('resources').select('id', { count: 'exact' });
-  const { data: resAvail } = await (supabase as any).from('resources').select('id', { count: 'exact' }).eq('status', 'available');
-  const { data: resAlloc } = await (supabase as any).from('resources').select('id', { count: 'exact' }).eq('status', 'allocated');
-
-  const { data: checkins } = await (supabase as any).from('checkins').select('id', { count: 'exact' }).eq('status', 'checked_in');
+      const upcoming = eventsRes.data?.filter((e: any) => new Date(e.start_ts) > new Date()).length || 0;
+      const totalResources = resourcesRes.count || 0;
+      const availableResources = resourcesRes.data?.filter((r: any) => r.registration_status === 'available').length || 0;
+      const allocatedResources = allocationsRes.count || 0;
+      const checkedInParticipants = checkinsRes.count || 0;
 
       setStats({
         totalEvents: eventsRes.count || 0,
         totalRegistrations: regsRes.count || 0,
         upcomingEvents: upcoming,
-        totalResources: resAll?.length || 0,
-        availableResources: resAvail?.length || 0,
-        allocatedResources: resAlloc?.length || 0,
-        checkedInParticipants: checkins?.length || 0
+        totalResources,
+        availableResources,
+        allocatedResources,
+        checkedInParticipants
       });
     } catch (error) {
       console.error('Error loading stats:', error);

@@ -21,7 +21,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
           events!registrations_event_id_fkey(title),
           ticket_types!registrations_ticket_type_id_fkey(name)
         `)
-        .eq('status', 'waitlisted')
+        .eq('registration_status', 'waitlisted')
         .order('created_at', { ascending: true });
 
       if (eventId) {
@@ -51,7 +51,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
     try {
       const { error } = await supabase
         .from('registrations')
-        .update({ status: 'waitlisted' })
+        .update({ registration_status: 'waitlisted' })
         .eq('id', registrationId);
 
       if (error) throw error;
@@ -79,7 +79,7 @@ export const useWaitlist = ({ eventId }: UseWaitlistProps = {}) => {
     try {
       const { error } = await supabase
         .from('registrations')
-        .update({ status: 'confirmed' })
+        .update({ registration_status: 'confirmed' })
         .eq('id', registrationId);
 
       if (error) throw error;

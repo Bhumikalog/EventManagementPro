@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWaitlist } from '@/hooks/useWaitlist';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, XCircle } from 'lucide-react';
 
 export const WaitlistManagement = () => {
   const [selectedEventId, setSelectedEventId] = useState<string>('');
@@ -73,7 +72,7 @@ export const WaitlistManagement = () => {
                     onClick={() => promoteFromWaitlist(registration.id)}
                     disabled={loading}
                   >
-                    <UserPlus className="w-4 h-4 mr-1" />
+                    <span className="w-4 h-4 mr-1">➕</span>
                     Promote
                   </Button>
                   <Button
@@ -82,7 +81,7 @@ export const WaitlistManagement = () => {
                     onClick={() => removeFromWaitlist(registration.id)}
                     disabled={loading}
                   >
-                    <XCircle className="w-4 h-4 mr-1" />
+                    <span className="w-4 h-4 mr-1">❌</span>
                     Remove
                   </Button>
                 </div>

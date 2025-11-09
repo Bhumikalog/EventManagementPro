@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Calendar, LogOut, User } from 'lucide-react';
+import { Calendar, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +27,7 @@ export default function Navbar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2">
-                  <User className="h-4 w-4" />
+                  <Users className="h-4 w-4" />
                   {profile?.display_name || profile?.email}
                 </Button>
               </DropdownMenuTrigger>
@@ -46,7 +46,7 @@ export default function Navbar() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => signOut()}>
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <span className="mr-2 h-4 w-4">🔓</span>
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>

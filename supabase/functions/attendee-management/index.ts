@@ -2,8 +2,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    // Return 204 No Content with CORS headers for a clean preflight response
+    return new Response(null, { status: 204, headers: corsHeaders })
   }
 
   try {
@@ -13,16 +15,17 @@ Deno.serve(async (req) => {
     )
 
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    // Debug log for Authorization header
+    console.log('Authorization header:', authHeader)
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
+        JSON.stringify({ error: 'Missing or invalid Authorization header. Make sure you are signed in and sending a valid Bearer token.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
-    
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
@@ -33,49 +36,111 @@ Deno.serve(async (req) => {
     const url = new URL(req.url)
 
     switch (req.method) {
+      // -----------------------------------------------------
+      // POST — Handles registration + waitlist actions
+      // -----------------------------------------------------
       case 'POST': {
         const body = await req.json()
-        
+
+        // ✅ Create registration
+        if (body.action === 'create_registration') {
+          const { event_id, user_id, ticket_type_id } = body
+          if (!event_id || !user_id || !ticket_type_id) {
+            return new Response(
+              JSON.stringify({ error: 'Missing required fields.' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          const { data: eventData, error: eventError } = await supabaseClient
+            .from('events')
+            .select('capacity, override_capacity, venue_id')
+            .eq('id', event_id)
+            .single()
+          if (eventError || !eventData) {
+            return new Response(
+              JSON.stringify({ error: 'Could not find event.' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          // Fetch venue capacity if exists
+          let venueCapacity = null
+          if (eventData.venue_id) {
+            const { data: venueData, error: venueError } = await supabaseClient
+              .from('venues')
+              .select('capacity')
+              .eq('id', eventData.venue_id)
+              .single()
+            if (!venueError && venueData) venueCapacity = venueData.capacity
+          }
+
+          // Count confirmed registrations
+          const { count: confirmedCount, error: countError } = await supabaseClient
+            .from('registrations')
+            .select('*', { count: 'exact', head: true })
+            .eq('event_id', event_id)
+            .eq('registration_status', 'confirmed')
+          if (countError) {
+            return new Response(
+              JSON.stringify({ error: 'Could not count confirmed registrations.' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          // Determine capacity
+          let effectiveCapacity = eventData.capacity
+          if (venueCapacity !== null && venueCapacity < effectiveCapacity) {
+            effectiveCapacity = venueCapacity
+          }
+
+          let registration_status = 'confirmed'
+          if (
+            effectiveCapacity !== null &&
+            confirmedCount >= effectiveCapacity &&
+            !eventData.override_capacity
+          ) {
+            registration_status = 'waitlisted'
+          }
+
+          const { data: registration, error: regError } = await supabaseClient
+            .from('registrations')
+            .insert({
+              event_id,
+              user_id,
+              ticket_type_id,
+              registration_status
+            })
+            .select()
+            .single()
+
+          if (regError) {
+            return new Response(
+              JSON.stringify({ error: regError.message }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          return new Response(
+            JSON.stringify({ data: registration }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // ✅ Waitlist actions
         if (body.action === 'waitlist') {
           let updateData: any = {}
-          
+
           switch (body.waitlist_action) {
-            case 'add_to_waitlist': {
-              const { data: maxPosition } = await supabaseClient
-                .from('attendees')
-                .select('waitlist_position')
-                .eq('is_waitlisted', true)
-                .order('waitlist_position', { ascending: false })
-                .limit(1)
-                .maybeSingle()
-
-              const nextPosition = maxPosition ? (maxPosition.waitlist_position || 0) + 1 : 1
-
-              updateData = {
-                is_waitlisted: true,
-                waitlist_position: nextPosition,
-                rsvp_status: 'pending'
-              }
+            case 'add_to_waitlist':
+              updateData = { registration_status: 'waitlisted' }
               break
-            }
-            
-            case 'remove_from_waitlist': {
-              updateData = {
-                is_waitlisted: false,
-                waitlist_position: null
-              }
+            case 'remove_from_waitlist':
+              updateData = { registration_status: 'cancelled' }
               break
-            }
-            
-            case 'promote_from_waitlist': {
-              updateData = {
-                is_waitlisted: false,
-                waitlist_position: null,
-                rsvp_status: 'accepted'
-              }
+            case 'promote_from_waitlist':
+              updateData = { registration_status: 'confirmed' }
               break
-            }
-            
             default:
               return new Response(
                 JSON.stringify({ error: 'Invalid waitlist action' }),
@@ -83,10 +148,10 @@ Deno.serve(async (req) => {
               )
           }
 
-          const { data: attendee, error } = await supabaseClient
-            .from('attendees')
+          const { data: registration, error } = await supabaseClient
+            .from('registrations')
             .update(updateData)
-            .eq('id', body.attendee_id)
+            .eq('id', body.registration_id)
             .select()
             .single()
 
@@ -99,27 +164,39 @@ Deno.serve(async (req) => {
           }
 
           return new Response(
-            JSON.stringify({ data: attendee }),
+            JSON.stringify({ data: registration }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
+        // Invalid POST action
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
+      // -----------------------------------------------------
+      // GET — Waitlist or stats
+      // -----------------------------------------------------
       case 'GET': {
         const action = url.searchParams.get('action')
-        
-        if (action === 'waitlist') {
-          const { data: waitlist, error } = await supabaseClient
-            .from('attendees')
-            .select('*')
-            .eq('is_waitlisted', true)
-            .order('waitlist_position', { ascending: true })
 
+        if (action === 'waitlist') {
+          const eventId = url.searchParams.get('eventId')
+          let query = supabaseClient
+            .from('registrations')
+            .select(
+              `*, 
+              profiles!registrations_user_id_fkey(email, display_name), 
+              events!registrations_event_id_fkey(title), 
+              ticket_types!registrations_ticket_type_id_fkey(name)`
+            )
+            .eq('registration_status', 'waitlisted')
+            .order('created_at', { ascending: true })
+          if (eventId) query = query.eq('event_id', eventId)
+
+          const { data: waitlist, error } = await query
           if (error) {
             console.error('Fetch waitlist error:', error)
             return new Response(
@@ -138,22 +215,18 @@ Deno.serve(async (req) => {
           const { count: totalAttendees } = await supabaseClient
             .from('attendees')
             .select('*', { count: 'exact', head: true })
-
           const { count: acceptedCount } = await supabaseClient
             .from('attendees')
             .select('*', { count: 'exact', head: true })
             .eq('rsvp_status', 'accepted')
-
           const { count: pendingCount } = await supabaseClient
             .from('attendees')
             .select('*', { count: 'exact', head: true })
             .eq('rsvp_status', 'pending')
-
           const { count: declinedCount } = await supabaseClient
             .from('attendees')
             .select('*', { count: 'exact', head: true })
             .eq('rsvp_status', 'declined')
-
           const { count: waitlistCount } = await supabaseClient
             .from('attendees')
             .select('*', { count: 'exact', head: true })
@@ -179,6 +252,9 @@ Deno.serve(async (req) => {
         )
       }
 
+      // -----------------------------------------------------
+      // Fallback
+      // -----------------------------------------------------
       default:
         return new Response(
           JSON.stringify({ error: 'Method not allowed' }),
