@@ -2,7 +2,7 @@ name: CD — push local code to final repo (via PR)
 
 on:
   push:
-    branches: [ main , ci-test]  # runs when you push from local to main
+    branches: [ main ]  # triggers when you push to main
 
 jobs:
   push-to-final:
@@ -21,8 +21,8 @@ jobs:
 
       - name: Clone destination repo (PESTechnology)
         env:
-          TARGET_REPO: ${{ secrets.TARGET_REPO }}          # pestechnology/... repo name
-          TARGET_PAT: ${{ secrets.TARGET_PAT }}       # fine-grained PAT with write access
+          TARGET_REPO: ${{ secrets.TARGET_REPO }}   # pestechnology/... repo name
+          TARGET_PAT: ${{ secrets.TARGET_PAT }}     # fine-grained PAT with write access
         run: |
           git clone https://x-access-token:${TARGET_PAT}@github.com/${TARGET_REPO}.git target-repo
           ls -la target-repo
@@ -37,7 +37,7 @@ jobs:
 
       - name: Commit and push to new branch
         env:
-          TARGET_REPO_PAT: ${{ secrets.TARGET_PAT }}
+          TARGET_PAT: ${{ secrets.TARGET_PAT }}
         run: |
           cd target-repo
           BRANCH="sync-${GITHUB_RUN_ID}"
@@ -48,16 +48,25 @@ jobs:
             exit 0
           fi
           git commit -m "ci(cd): auto-sync from ${GITHUB_REPOSITORY} @ ${GITHUB_SHA}"
-          git push origin $BRANCH
+          git push https://x-access-token:${TARGET_PAT}@github.com/${{ secrets.TARGET_REPO }}.git $BRANCH
 
-      - name: Create Pull Request
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Authenticate and create Pull Request
         env:
           GH_TOKEN: ${{ secrets.TARGET_PAT }}
           TARGET_REPO: ${{ secrets.TARGET_REPO }}
         run: |
+          gh auth setup-git
+          gh auth login --with-token <<< "${GH_TOKEN}"
+          BRANCH="sync-${GITHUB_RUN_ID}"
+          echo "Creating pull request for branch: ${BRANCH}"
           gh pr create \
-            --repo ${TARGET_REPO} \
-            --head $BRANCH \
+            --repo "${TARGET_REPO}" \
+            --head "${BRANCH}" \
             --base main \
             --title "Automated Sync: ${GITHUB_REPOSITORY}" \
             --body "This PR was auto-generated from the latest push in **${GITHUB_REPOSITORY}** at commit ${GITHUB_SHA}."
