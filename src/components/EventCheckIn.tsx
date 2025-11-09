@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -28,7 +28,7 @@ export default function EventCheckIn() {
   }, [selectedEventId]);
 
   const loadEvents = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('events')
       .select('id, title, start_ts')
       .order('start_ts', { ascending: true });
@@ -43,7 +43,7 @@ export default function EventCheckIn() {
 
   const loadRegistrations = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('registrations')
       .select(`
         *,
@@ -64,7 +64,7 @@ export default function EventCheckIn() {
 
   const handleCheckIn = async (registrationId: string) => {
     // Mark registration as checked in
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('registrations')
       .update({ checked_in_at: new Date().toISOString() })
       .eq('id', registrationId);
@@ -73,6 +73,23 @@ export default function EventCheckIn() {
       console.error('Error checking in:', updateError);
       toast.error('Failed to check in attendee');
       return;
+    }
+
+    // Find the registration object so we can persist a checkin record
+    const reg = registrations.find((r) => r.id === registrationId);
+
+    try {
+      // Insert a checkin row to persist the check-in event for reporting
+      await (supabase as any).from('checkins').insert({
+        registration_id: registrationId,
+        participant_id: reg?.user_id ?? null,
+        event_id: reg?.event_id ?? null,
+        resource_id: null,
+        status: 'checked_in'
+      });
+    } catch (e) {
+      // Non-fatal: registration is still checked in, but log the error
+      console.error('Failed to insert checkin record:', e);
     }
 
     toast.success('Attendee checked in successfully!');
@@ -122,7 +139,7 @@ export default function EventCheckIn() {
           <div>
             <label className="text-sm font-medium mb-2 block">Search Attendees</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground">🔍</span>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, or ticket type..."
                 value={searchQuery}
