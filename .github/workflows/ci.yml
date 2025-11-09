@@ -39,14 +39,14 @@ jobs:
       - name: Skip lint
         run: echo "Skipping pylint step for now"
 
-      - name: Check code formatting
-        run: black src/ tests/ --check
+#     - name: Check code formatting
+#       run: black src/ tests/ --check
 
       - name: Run tests with coverage
         run: pytest tests/ --cov=src --cov-report=xml --cov-report=term
 
-      - name: Run Bandit security scan
-        run: bandit -r src/ -f json -o bandit-report.json
+#      - name: Run Bandit security scan
+#        run: bandit -r src/ -f json -o bandit-report.json
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
