@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+ test: {
+    environment: 'jsdom', // 👈 This gives access to browser APIs like localStorage
+    globals: true,
+    setupFiles: './src/setupTests.ts'
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
