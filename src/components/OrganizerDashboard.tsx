@@ -28,7 +28,7 @@ export default function OrganizerDashboard() {
 
   useEffect(() => {
     // subscribe to realtime changes for resources, allocations, and checkins
-    const resourceSub = (supabase as any).channel('public:resources')
+    const resourceSub = supabase.channel('public:resources')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => loadStats())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, () => loadStats())
@@ -44,14 +44,14 @@ export default function OrganizerDashboard() {
       const [eventsRes, regsRes, resourcesRes, allocationsRes, checkinsRes] = await Promise.all([
         supabase.from('events').select('id, start_ts', { count: 'exact' }),
         supabase.from('registrations').select('id', { count: 'exact' }),
-        (supabase as any).from('resources').select('id, registration_status', { count: 'exact' }),
+        (supabase as any).from('resources').select('id, status', { count: 'exact' }),
         (supabase as any).from('resource_allocations').select('id', { count: 'exact' }),
         (supabase as any).from('checkins').select('id', { count: 'exact' })
       ]);
 
       const upcoming = eventsRes.data?.filter((e: any) => new Date(e.start_ts) > new Date()).length || 0;
       const totalResources = resourcesRes.count || 0;
-      const availableResources = resourcesRes.data?.filter((r: any) => r.registration_status === 'available').length || 0;
+      const availableResources = resourcesRes.data?.filter((r: any) => r.status === 'available').length || 0;
       const allocatedResources = allocationsRes.count || 0;
       const checkedInParticipants = checkinsRes.count || 0;
 
