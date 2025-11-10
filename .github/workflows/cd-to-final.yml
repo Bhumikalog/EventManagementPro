@@ -29,11 +29,11 @@ jobs:
       # 3️⃣ Clone the destination repo (pestechnology)
       - name: Clone destination repo
         env:
-          TARGET_REPO: ${{ secrets.TARGET_REPO }}   # pestechnology/... repo name
+          TARGET_REPO: ${{ secrets.TARGET_REPO }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "🔄 Cloning destination repository: ${TARGET_REPO}"
-          git clone https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git target-repo
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" target-repo
           ls -la target-repo
 
       # 4️⃣ Sync source -> destination (excluding workflow files)
