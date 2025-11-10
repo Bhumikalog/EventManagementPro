@@ -40,7 +40,6 @@ export function CheckInSystem() {
       }
 
       // Verify and check-in
-      // qrData will be the registration_id string
       await verifyAndCheckIn(qrData);
       
     } catch (error: any) {
@@ -89,33 +88,73 @@ export function CheckInSystem() {
     return code?.data || null;
   };
 
-  // THIS IS THE FULLY CORRECTED VERIFY FUNCTION
   const verifyAndCheckIn = async (qrData: string) => {
+    let registration: any = null;
+
     try {
-      // The QR data is now *always* the registration_id
-      const { data: registration, error: regError } = await supabase
+      // 1. Extract the unique ID (order_id) from the QR payload
+      let uniqueId: string;
+      try {
+        const payload = JSON.parse(qrData);
+        uniqueId = payload.order_id;
+      } catch (e) {
+        // Fallback for raw UUIDs or non-JSON content
+        uniqueId = qrData;
+      }
+
+      if (!uniqueId) {
+        throw new Error('QR data missing unique ID.');
+      }
+      
+      // Base query for registration data, which will be reused
+      const baseQuery = supabase
         .from('registrations')
         .select(`
           *,
           user:profiles(display_name, email),
           event:events(title),
           ticket_type:ticket_types(name)
-        `)
-        .eq('id', qrData) // This is the only check we need
-        .single();
+        `);
 
-      if (regError || !registration) {
-        // If not found by registration ID
+      // 2. Search 1: Try to find the registration directly by its ID (Works for Free Tickets)
+      const { data: directReg } = await baseQuery
+        .eq('id', uniqueId)
+        .maybeSingle();
+
+      registration = directReg;
+      
+      // 3. Search 2: If no direct match, look up via the 'orders' table (Works for Paid Tickets)
+      if (!registration) {
+          // Find the order that generated this uniqueId (orderId)
+          const { data: order } = await (supabase as any) // <-- Type cast used here
+              .from('orders')
+              .select('registration_id')
+              .eq('id', uniqueId) // Search by the uniqueId (which is the orders.id here)
+              .maybeSingle();
+
+          const registrationIdFromOrder = order?.registration_id;
+
+          if (registrationIdFromOrder) {
+              // Fetch the actual linked registration using the ID retrieved from the order
+              const { data: linkedReg } = await baseQuery
+                  .eq('id', registrationIdFromOrder)
+                  .maybeSingle();
+                  
+              registration = linkedReg;
+          }
+      }
+      
+      // 4. Final Validation
+      if (!registration || registration.registration_status !== 'confirmed') {
         setVerificationResult({
           success: false,
-          message: 'Invalid or unregistered QR code.'
+          message: 'Invalid or unregistered QR code, or registration is not confirmed.'
         });
         toast.error('Invalid QR code');
         return;
       }
 
-      // Check in using the found registration
-      // This function already contains the logic to use event_id and user_id
+      // If we reach here, we have a valid and confirmed registration object
       await checkInRegistration(registration);
       
     } catch (error: any) {
@@ -152,7 +191,7 @@ export function CheckInSystem() {
     // Also insert into checkins table to record resource/event check-in
     try {
       // Find resource allocation for the event
-      const { data: allocation } = await supabase
+      const { data: allocation } = await (supabase as any) // <-- Type cast used here
         .from('resource_allocations')
         .select('resource_id')
         .eq('event_id', registration.event_id)
@@ -161,7 +200,7 @@ export function CheckInSystem() {
       const resourceId = allocation?.resource_id || null;
 
       // Prevent duplicate checkins for the same registration
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase as any) // <-- Type cast used here
         .from('checkins')
         .select('*')
         .eq('registration_id', registration.id)
@@ -170,7 +209,7 @@ export function CheckInSystem() {
       if (existing && existing.length > 0) {
         console.warn('Checkin already exists for registration', registration.id);
       } else {
-        const { error: checkinError } = await supabase
+        const { error: checkinError } = await (supabase as any) // <-- Type cast used here
           .from('checkins')
           .insert({
             registration_id: registration.id,
