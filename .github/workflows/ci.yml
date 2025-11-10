@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ main ]
   push:
-    branches: [ ci-test, ci/setup-github-actions ]
+    branches: [ cd-test, ci/setup-github-actions ]
 
 jobs:
   build-and-test:

@@ -2,7 +2,7 @@ name: CD — Push Local Code to Final Repo (via PR)
 
 on:
   push:
-    branches: [ ci-test ]  # trigger only on ci-test pushes for safety
+    branches: [ cd-test ]  # trigger only on ci-test pushes for safety
 
 jobs:
   push-to-final:
