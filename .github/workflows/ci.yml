@@ -1,55 +1,46 @@
-name: CI — tests & quality
+name: CI — build and test React app
 
 on:
   pull_request:
     branches: [ main ]
   push:
-    branches: [ main, ci/setup-github-actions, ci-test ]
+    branches: [ main, ci-test, ci/setup-github-actions ]
 
 jobs:
-  test-and-quality:
+  build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.13]
 
     steps:
+      # 1️⃣ Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      # 2️⃣ Setup Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          node-version: 20  # matches modern Vite & Supabase requirements
+          cache: 'npm'
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
+      # 3️⃣ Install dependencies (from package.json)
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements-ci.txt ]; then pip install -r requirements-ci.txt; fi
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        run: npm ci
 
-      - name: Skip lint
-        run: echo "Skipping pylint step for now"
+      # 4️⃣ Run ESLint for code quality (optional)
+      - name: Run ESLint
+        run: npm run lint
 
-#     - name: Check code formatting
-#       run: black src/ tests/ --check
+      # 5️⃣ Run unit tests (using Vitest)
+      - name: Run tests
+        run: npm run test -- --run
 
-      - name: Run tests with coverage
-        run: pytest tests/ --cov=src --cov-report=xml --cov-report=term
+      # 6️⃣ Build the project (ensures no build errors)
+      - name: Build project
+        run: npm run build
 
-#      - name: Run Bandit security scan
-#        run: bandit -r src/ -f json -o bandit-report.json
-
-      - name: Upload coverage artifact
+      # 7️⃣ Upload build artifacts (optional)
+      - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: coverage.xml
+          name: vite-build
+          path: dist
