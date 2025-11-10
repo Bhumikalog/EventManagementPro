@@ -23,7 +23,7 @@ const ResourceManagement = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 max-w-5xl mx-auto">
+    <TabsList className="grid w-full grid-cols-5 max-w-5xl mx-auto">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Dashboard
@@ -32,10 +32,7 @@ const ResourceManagement = () => {
               <MapPin className="h-4 w-4" />
               Resource Catalog
             </TabsTrigger>
-            <TabsTrigger value="allocations" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Allocations
-            </TabsTrigger>
+            {/* Allocations tab removed per request */}
             <TabsTrigger value="checkin" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
               Check-In
@@ -54,9 +51,7 @@ const ResourceManagement = () => {
             <ResourceManager />
           </TabsContent>
 
-          <TabsContent value="allocations" className="space-y-6">
-            <AllocationManager />
-          </TabsContent>
+          {/* Allocations tab content removed */}
 
           <TabsContent value="checkin" className="space-y-6">
             <CheckInSystem />

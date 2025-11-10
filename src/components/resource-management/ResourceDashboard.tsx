@@ -58,8 +58,13 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
 
     const interval = setInterval(fetchDashboardStats, 30000);
 
+    // Listen for manual refresh events (dispatched after check-in)
+    const onManualRefresh = () => fetchDashboardStats();
+    window.addEventListener('refreshCheckInData', onManualRefresh as EventListener);
+
     return () => {
       clearInterval(interval);
+      window.removeEventListener('refreshCheckInData', onManualRefresh as EventListener);
       try {
         if (realtimeChannelRef.current) {
           supabase.removeChannel(realtimeChannelRef.current);
@@ -150,7 +155,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         <Card>
           <CardContent className="flex items-center justify-between p-6">
             <div>
@@ -175,27 +180,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Checked In</p>
-              <p className="text-2xl font-bold text-success">{stats.checkedInTickets}</p>
-              <p className="text-xs text-muted-foreground">Successful check-ins</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-success" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Pending Check-ins</p>
-              <p className="text-2xl font-bold text-warning">{stats.pendingCheckIns}</p>
-              <p className="text-xs text-muted-foreground">Awaiting check-in</p>
-            </div>
-            <Clock className="h-8 w-8 text-warning" />
-          </CardContent>
-        </Card>
+        {/* Removed: Checked In and Pending Check-ins cards per request */}
       </div>
 
       <Card>
@@ -213,14 +198,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
               <p className="text-sm text-muted-foreground">Add, edit, or remove resources</p>
             </div>
 
-            <div
-              className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-              onClick={() => onNavigate?.('allocations')}
-            >
-              <Users className="h-6 w-6 text-warning mb-2" />
-              <h3 className="font-semibold">Resource Allocation</h3>
-              <p className="text-sm text-muted-foreground">Allocate resources to events</p>
-            </div>
+            {/* Resource Allocation quick action removed per request */}
 
             <div
               className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
