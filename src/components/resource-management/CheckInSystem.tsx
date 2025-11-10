@@ -174,7 +174,7 @@ export function CheckInSystem() {
         message: `This attendee has already been checked in at ${new Date(registration.checked_in_at).toLocaleString()}.`,
         attendee: registration
       });
-      toast.warning('Already checked in');
+      toast('Already checked in');
       return;
     }
 
@@ -234,6 +234,13 @@ export function CheckInSystem() {
       attendee: registration
     });
     toast.success('Attendee checked in successfully!');
+
+    // notify dashboards to refresh
+    try {
+      window.dispatchEvent(new CustomEvent('refreshCheckInData'));
+    } catch (e) {
+      // ignore
+    }
   };
 
   return (

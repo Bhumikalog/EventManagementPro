@@ -45,6 +45,22 @@ export function AllocationManager() {
     loadData();
   }, []);
 
+  // subscribe to realtime updates so allocations list stays in sync when resources are allocated elsewhere
+  useEffect(() => {
+    const channel = (supabase as any).channel('public:allocations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, () => loadData())
+      .subscribe();
+
+    return () => {
+      try {
+        (supabase as any).removeChannel(channel);
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, []);
+
   const loadData = async () => {
     try {
       // Load available resources
@@ -76,7 +92,6 @@ export function AllocationManager() {
           resources(name, type),
           events(title)
         `)
-        .eq('organizer_id', user?.id)
         .order('allocated_at', { ascending: false });
 
       if (allocError) throw allocError;
