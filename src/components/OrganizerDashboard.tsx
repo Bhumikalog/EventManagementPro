@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 // VenueManager removed from dashboard
 import EventManager from './EventManager';
 import RegistrationsList from './RegistrationsList';
-import EventCheckIn from './EventCheckIn';
+import { CheckInSystem } from './resource-management/CheckInSystem';
 import { WaitlistManagement } from './WaitlistManagement';
 import { toast } from 'sonner';
 import ResourceManagement from '@/pages/ResourceManagement';
@@ -52,7 +52,7 @@ export default function OrganizerDashboard() {
       const upcoming = eventsRes.data?.filter((e: any) => new Date(e.start_ts) > new Date()).length || 0;
       const totalResources = resourcesRes.count || 0;
       const availableResources = resourcesRes.data?.filter((r: any) => r.status === 'available').length || 0;
-      const allocatedResources = allocationsRes.count || 0;
+      const allocatedResources = totalResources - availableResources;
       const checkedInParticipants = checkinsRes.count || 0;
 
       setStats({
@@ -119,7 +119,7 @@ export default function OrganizerDashboard() {
         {/* Venue tab removed - no longer rendered */}
 
         <TabsContent value="check-in" className="space-y-4">
-          <EventCheckIn />
+          <CheckInSystem />
         </TabsContent>
 
         <TabsContent value="registrations" className="space-y-4">

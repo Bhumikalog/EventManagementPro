@@ -198,7 +198,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
               <p className="text-sm text-muted-foreground">Add, edit, or remove resources</p>
             </div>
 
-            {/* Resource Allocation quick action removed per request */}
+            {/* Resource Allocation quick action removed per request 
 
             <div
               className="p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
@@ -207,7 +207,7 @@ export function ResourceDashboard({ onNavigate }: DashboardProps) {
               <CheckCircle className="h-6 w-6 text-success mb-2" />
               <h3 className="font-semibold">Process Check-ins</h3>
               <p className="text-sm text-muted-foreground">Scan QR codes and manage attendance</p>
-            </div>
+            </div>*/}
           </div>
         </CardContent>
       </Card>
