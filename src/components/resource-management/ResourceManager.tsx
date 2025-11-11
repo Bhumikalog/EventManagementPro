@@ -356,7 +356,7 @@ export function ResourceManager() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => {
+      <Dialog open={dialogOpen} modal={false} onOpenChange={(open) => {
         setDialogOpen(open);
         if (!open) resetForm();
       }}>
@@ -429,7 +429,7 @@ export function ResourceManager() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button data-testid="create-submit" type="submit" disabled={loading}>
                 {loading ? 'Saving...' : editingResource ? 'Update' : 'Create'}
               </Button>
             </div>

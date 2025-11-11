@@ -235,7 +235,7 @@ export function CheckInSystem() {
                 accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
-                id="qr-upload"
+                data-testid="qr-upload"
               />
 
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
