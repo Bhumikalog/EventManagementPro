@@ -27,36 +27,75 @@ export default function TicketSuccess() {
   }, [orderId, navigate]) // Removed qrCodeData from deps
 
   const fetchOrderDetails = async () => {
-    if (!orderId) return;
-    setLoading(true);
-    try {
-      const { data: order, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          events (
-            title,
-            start_ts,
-            venue_name,
-            venue_location
-          ),
-          ticket_types (
-            name
-          )
-        `)
-        .eq('id', orderId)
-        .single()
+  if (!orderId) return;
+  setLoading(true);
+  try {
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        events (
+          title,
+          start_ts,
+          venue_name,
+          venue_location
+        ),
+        ticket_types (
+          name
+        )
+      `)
+      .eq('id', orderId)
+      .single();
 
-      if (error) throw error
+    if (error) throw error;
 
-      setOrderDetails(order)
-      setEventDetails(order.events)
-    } catch (error) {
-      console.error('Error fetching order:', error)
-    } finally {
-      setLoading(false);
-    }
+    setOrderDetails(order);
+    setEventDetails(order.events);
+
+    // ✅ NEW — ensure registration exists for paid order
+    await ensureRegistration(order);
+
+  } catch (error) {
+    console.error('Error fetching order:', error);
+  } finally {
+    setLoading(false);
   }
+};
+
+// ✅ NEW helper function
+const ensureRegistration = async (order: any) => {
+  if (!order?.user_id || !order?.event_id || !order?.ticket_type_id) return;
+
+  const { data: existing, error: existingError } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('user_id', order.user_id)
+    .eq('event_id', order.event_id)
+    .eq('ticket_type_id', order.ticket_type_id)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+
+  if (!existing) {
+    const { error: insertError } = await supabase.from('registrations').insert({
+      user_id: order.user_id,
+      event_id: order.event_id,
+      ticket_type_id: order.ticket_type_id,
+      registration_status: 'confirmed',
+      created_at: new Date().toISOString(),
+      checked_in_at: null,
+    });
+
+    if (insertError) {
+      console.error('Error inserting registration:', insertError);
+    } else {
+      console.log('✅ Registration created for paid ticket');
+    }
+  } else {
+    console.log('ℹ️ Registration already exists, skipping insert.');
+  }
+};
+
 
   const downloadQRCode = () => {
     const svg = document.getElementById('qr-code')
