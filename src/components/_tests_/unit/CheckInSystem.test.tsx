@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { vi, describe, it, beforeEach, expect } from "vitest";
-import { CheckInSystem } from "../resource-management/CheckInSystem";
+import { CheckInSystem } from "../../resource-management/CheckInSystem";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jsQR from "jsqr";

@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { vi, describe, it, beforeEach, expect } from "vitest";
-import { ResourceManager } from "../resource-management/ResourceManager";
+import { ResourceManager } from "../../resource-management/ResourceManager";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
