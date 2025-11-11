@@ -3,13 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, Link2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+console.log("Function URL:", import.meta.env.VITE_SUPABASE_FUNCTIONS_URL);
 
 interface Resource {
   id: string;
@@ -68,7 +68,7 @@ export function ResourceManager() {
 
     return () => {
       try { supabase.removeChannel(channel); } catch (e) { /* ignore */ }
-    }
+    };
   }, []);
 
   const loadResources = async () => {
@@ -80,10 +80,9 @@ export function ResourceManager() {
         .order('name');
 
       if (error) {
-        // If the resources table does not exist, provide an actionable message
         const msg = String(error.message || error.details || 'Failed to load resources');
         if (msg.toLowerCase().includes('does not exist') || msg.includes('42P01')) {
-          setLoadError('Resources table not found. Please apply the DB migrations (see supabase/migrations/20251108_create_resources_and_allocations.sql)');
+          setLoadError('Resources table not found. Please apply the DB migrations.');
         } else {
           setLoadError(msg);
           toast.error('Failed to load resources');
@@ -94,7 +93,6 @@ export function ResourceManager() {
 
       setResources(data || []);
 
-      // build allocation map from resource_allocations table for allocated resources
       const allocatedIds = (data || []).filter((r: any) => r.status === 'allocated').map((r: any) => r.id);
       if (allocatedIds.length > 0) {
         const { data: allocationData } = await (supabase as any)
@@ -110,11 +108,10 @@ export function ResourceManager() {
               events: {
                 title: row.events?.title,
                 start_time: row.events?.start_time,
-              }
+              },
             };
           }
         });
-
         setAllocations(allocationMap);
       }
     } catch (error) {
@@ -126,15 +123,8 @@ export function ResourceManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const resourceData = {
-        ...formData,
-        status: 'available',
-      };
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const resourceData = { ...formData, status: 'available' };
 
       if (editingResource) {
         const { error } = await supabase
@@ -178,6 +168,66 @@ export function ResourceManager() {
 
     toast.success('Resource deleted');
     loadResources();
+  };
+
+  // 🆕 Allocate resource and create record in resource_allocations table
+  const handleAllocate = async (resourceId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        toast.error('You must be logged in as organizer to allocate resources.');
+        return;
+      }
+
+      // pick first event temporarily (can extend later)
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (eventError || !event) {
+        toast.error('No event found to allocate resource.');
+        return;
+      }
+
+      const functionUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
+      const res = await fetch(`${functionUrl}/resource-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'allocate_resource',
+          resource_id: resourceId,
+          event_id: event.id,
+          notes: 'Allocated via ResourceManager UI',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Error from function:', data);
+        toast.error(data.error || 'Failed to allocate resource');
+        return;
+      }
+
+      // update local resource status
+      await supabase
+        .from('resources')
+        .update({ status: 'allocated' })
+        .eq('id', resourceId);
+
+      toast.success('Resource allocated successfully');
+      loadResources();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Unexpected error allocating resource');
+    }
   };
 
   const openDialog = (resource?: Resource) => {
@@ -271,6 +321,14 @@ export function ResourceManager() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAllocate(resource.id)}
+                        disabled={resource.status === 'allocated'}
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -282,12 +340,17 @@ export function ResourceManager() {
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">{loadError}</p>
-              <p className="text-sm text-muted-foreground">If you haven't applied database migrations yet, run the SQL in <code>supabase/migrations/20251108_create_resources_and_allocations.sql</code> in your Supabase project.</p>
+              <p className="text-sm text-muted-foreground">
+                If you haven't applied database migrations yet, run the SQL in{' '}
+                <code>supabase/migrations/20251108_create_resources_and_allocations.sql</code> in your Supabase project.
+              </p>
             </div>
           ) : resources.length === 0 ? (
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No resources yet. Create your first resource to get started.</p>
+              <p className="text-muted-foreground">
+                No resources yet. Create your first resource to get started.
+              </p>
             </div>
           ) : null}
         </CardContent>

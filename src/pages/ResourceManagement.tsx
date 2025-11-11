@@ -15,15 +15,15 @@ const ResourceManagement = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="text-center space-y-4 mb-8">
           <h1 className="text-4xl font-bold">
-            Resource & Check-In Management
+            Resource Management
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Manage resources, allocations, check-ins, and generate detailed reports
+            Manage resources, allocations and generate detailed reports
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-    <TabsList className="grid w-full grid-cols-5 max-w-5xl mx-auto">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+  <TabsList className="flex w-full justify-center max-w-5xl mx-auto gap-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Dashboard
@@ -32,11 +32,11 @@ const ResourceManagement = () => {
               <MapPin className="h-4 w-4" />
               Resource Catalog
             </TabsTrigger>
-            {/* Allocations tab removed per request */}
+            {/* Allocations tab removed per request 
             <TabsTrigger value="checkin" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
               Check-In
-            </TabsTrigger>
+            </TabsTrigger>*/}
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Reports
