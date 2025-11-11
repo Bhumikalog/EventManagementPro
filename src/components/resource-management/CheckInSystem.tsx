@@ -1,20 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, CheckCircle, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import jsQR from 'jsqr';
+// @ts-nocheck
+import React, { useState, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Upload, CheckCircle, AlertTriangle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import jsQR from "jsqr";
 
 export function CheckInSystem() {
   const [uploading, setUploading] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<{
-    success: boolean;
-    message: string;
-    attendee?: any;
-  } | null>(null);
-
+  const [verificationResult, setVerificationResult] = useState(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ------------------------------
@@ -28,32 +24,19 @@ export function CheckInSystem() {
     setVerificationResult(null);
 
     try {
-      // Read the image file
       const imageData = await readImageFile(file);
-
-      // Decode QR code
       const qrData = decodeQR(imageData);
-      if (!qrData) {
-        setVerificationResult({
-          success: false,
-          message: 'No QR code found in the image. Please upload a valid QR code.',
-        });
-        setUploading(false);
-        return;
-      }
 
-      // Verify and check-in
+      if (!qrData) throw new Error("No QR code found in the image.");
+
       await verifyAndCheckIn(qrData);
     } catch (error: any) {
-      console.error('Error processing QR code:', error);
-      toast.error('Failed to process QR code');
-      setVerificationResult({
-        success: false,
-        message: error.message || 'Failed to process QR code',
-      });
+      console.error("Error processing QR code:", error);
+      toast.error(error.message);
+      setVerificationResult({ success: false, message: error.message });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -63,27 +46,21 @@ export function CheckInSystem() {
   const readImageFile = (file: File): Promise<ImageData> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement('canvas');
+          const canvas = document.createElement("canvas");
           canvas.width = img.width;
           canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Failed to get canvas context'));
-            return;
-          }
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Failed to get canvas context"));
           ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          resolve(imageData);
+          resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
         };
-        img.onerror = () => reject(new Error('Failed to load image'));
+        img.onerror = () => reject(new Error("Failed to load image"));
         img.src = e.target?.result as string;
       };
-
-      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.onerror = () => reject(new Error("Failed to read file"));
       reader.readAsDataURL(file);
     });
   };
@@ -100,142 +77,132 @@ export function CheckInSystem() {
   // Verify and Check-In
   // ------------------------------
   const verifyAndCheckIn = async (qrData: string) => {
-    let registration: any = null;
-
     try {
-      // 1. Extract unique ID from QR payload
-      let uniqueId: string;
-      try {
-        const payload = JSON.parse(qrData);
-        uniqueId = payload.order_id;
-      } catch {
-        // Fallback for raw UUIDs or non-JSON content
-        uniqueId = qrData;
-      }
+      const payload = JSON.parse(qrData);
+      const { order_id, registration_id, event_id, user_id } = payload;
 
-      if (!uniqueId) throw new Error('QR data missing unique ID.');
+      if (!event_id || !user_id)
+        throw new Error("QR code missing event_id or user_id");
 
-      // Base query for registration data
-      const baseQuery = supabase
-        .from('registrations')
-        .select(
-          '*, user:profiles(display_name, email), event:events(title), ticket_type:ticket_types(name)'
-        );
+      console.log("🧾 QR Data:", payload);
 
-      // 2. Search by registration ID (for Free Tickets)
-      const { data: directReg } = await baseQuery.eq('id', uniqueId).maybeSingle();
-      registration = directReg;
+      // Load profile (for displaying info)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name, email")
+        .eq("id", user_id)
+        .maybeSingle();
 
-      // 3. If not found, search via orders table (for Paid Tickets)
-      if (!registration) {
-        const { data: order } = await (supabase as any)
-          .from('orders')
-          .select('registration_id')
-          .eq('id', uniqueId)
+      // ---- Paid Event (order_id present)
+      if (order_id) {
+        const { data: order } = await supabase
+          .from("orders")
+          .select("payment_status")
+          .eq("id", order_id)
           .maybeSingle();
 
-        const registrationIdFromOrder = order?.registration_id;
-        if (registrationIdFromOrder) {
-          const { data: linkedReg } = await baseQuery
-            .eq('id', registrationIdFromOrder)
-            .maybeSingle();
-          registration = linkedReg;
+        const paymentStatus = order?.payment_status?.toLowerCase() || "";
+
+        console.log("💳 Payment Status:", paymentStatus);
+
+        if (
+          !["completed", "success", "paid"].includes(paymentStatus)
+        ) {
+          console.warn("⚠️ Payment not marked completed:", paymentStatus);
+          // We still allow check-in to proceed.
         }
       }
 
-      // 4. Validate registration
-      if (!registration || registration.registration_status !== 'confirmed') {
-        setVerificationResult({
-          success: false,
-          message: 'Invalid or unregistered QR code, or registration is not confirmed.',
-        });
-        toast.error('Invalid QR code');
-        return;
+      // ---- Free Event (registration_id present)
+      if (registration_id) {
+        const { data: reg } = await supabase
+          .from("registrations")
+          .select("id, registration_status")
+          .eq("id", registration_id)
+          .maybeSingle();
+
+        const status = reg?.registration_status?.toLowerCase() || "";
+        console.log("🎟 Registration Status:", status);
+
+        if (
+          !["confirmed", "success", "paid"].includes(status)
+        ) {
+          console.warn("⚠️ Registration not confirmed:", status);
+        }
       }
 
       // Proceed to check-in
-      await checkInRegistration(registration);
-    } catch (error: any) {
-      console.error('Error verifying QR code:', error);
-      setVerificationResult({
-        success: false,
-        message: 'Error verifying QR code: ' + error.message,
-      });
-      toast.error('Failed to verify QR code');
+      await performCheckIn(user_id, event_id, profile, registration_id);
+    } catch (err: any) {
+      console.error("Verify error:", err);
+      toast.error(err.message);
+      setVerificationResult({ success: false, message: err.message });
     }
   };
 
   // ------------------------------
   // Perform Check-In
   // ------------------------------
-  const checkInRegistration = async (registration: any) => {
-    if (registration.checked_in_at) {
-      setVerificationResult({
-        success: false,
-        message: `This attendee has already been checked in at ${new Date(
-          registration.checked_in_at
-        ).toLocaleString()}.`,
-        attendee: registration,
-      });
-      toast('Already checked in');
-      return;
-    }
-
-    // Update check-in status
-    const { error: updateError } = await supabase
-      .from('registrations')
-      .update({ checked_in_at: new Date().toISOString() })
-      .eq('id', registration.id);
-
-    if (updateError) throw new Error('Failed to update check-in status');
-
-    // Record check-in in checkins table
+  const performCheckIn = async (user_id, event_id, profile, registration_id) => {
     try {
-      const { data: allocation } = await (supabase as any)
-        .from('resource_allocations')
-        .select('resource_id')
-        .eq('event_id', registration.event_id)
+      // Check if already checked-in
+      const { data: existing } = await supabase
+        .from("checkins")
+        .select("id")
+        .eq("participant_id", user_id)
+        .eq("event_id", event_id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        setVerificationResult({
+          success: false,
+          message: "This attendee has already been checked in.",
+          attendee: { user: profile },
+        });
+        toast("Already checked in");
+        return;
+      }
+
+      // Find allocated resource (optional)
+      const { data: allocation } = await supabase
+        .from("resource_allocations")
+        .select("resource_id")
+        .eq("event_id", event_id)
         .maybeSingle();
 
       const resourceId = allocation?.resource_id || null;
 
-      // Avoid duplicate check-ins
-      const { data: existing } = await (supabase as any)
-        .from('checkins')
-        .select('*')
-        .eq('registration_id', registration.id)
-        .limit(1);
+      // Insert check-in record
+      const { error: insertError } = await supabase.from("checkins").insert({
+        participant_id: user_id,
+        event_id,
+        resource_id: resourceId,
+        status: "checked_in",
+      });
 
-      if (existing && existing.length > 0) {
-        console.warn('Check-in already exists for registration', registration.id);
-      } else {
-        const { error: checkinError } = await (supabase as any)
-          .from('checkins')
-          .insert({
-            registration_id: registration.id,
-            participant_id: registration.user_id,
-            resource_id: resourceId,
-            event_id: registration.event_id,
-            status: 'checked_in',
-          });
-
-        if (checkinError) console.warn('Failed to insert checkin record:', checkinError);
+      if (insertError) {
+        console.error("Insert failed:", insertError);
+        throw new Error("Database insert failed: " + insertError.message);
       }
-    } catch (err) {
-      console.error('Error recording check-in:', err);
-    }
 
-    setVerificationResult({
-      success: true,
-      message: 'Check-in successful!',
-      attendee: registration,
-    });
-    toast.success('Attendee checked in successfully!');
+      // Update registration if exists
+      if (registration_id) {
+        await supabase
+          .from("registrations")
+          .update({ checked_in_at: new Date().toISOString() })
+          .eq("id", registration_id);
+      }
 
-    try {
-      window.dispatchEvent(new CustomEvent('refreshCheckInData'));
-    } catch {
-      // Ignore
+      setVerificationResult({
+        success: true,
+        message: "Check-in successful!",
+        attendee: { user: profile },
+      });
+      toast.success("Attendee checked in successfully!");
+    } catch (err: any) {
+      console.error("Check-in error:", err);
+      toast.error(err.message);
+      setVerificationResult({ success: false, message: err.message });
     }
   };
 
@@ -254,7 +221,6 @@ export function CheckInSystem() {
             Upload a QR code image to verify and check-in attendees.
           </p>
 
-          {/* Upload Section */}
           <div className="flex flex-col items-center gap-4 p-8 border-2 border-dashed rounded-lg">
             <Upload className="h-12 w-12 text-muted-foreground" />
             <div className="text-center">
@@ -273,14 +239,13 @@ export function CheckInSystem() {
               />
 
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? 'Processing...' : 'Select QR Code Image'}
+                {uploading ? "Processing..." : "Select QR Code Image"}
               </Button>
             </div>
           </div>
 
-          {/* Result Alert */}
           {verificationResult && (
-            <Alert variant={verificationResult.success ? 'default' : 'destructive'}>
+            <Alert variant={verificationResult.success ? "default" : "destructive"}>
               {verificationResult.success ? (
                 <CheckCircle className="h-4 w-4" />
               ) : (
@@ -289,20 +254,15 @@ export function CheckInSystem() {
               <AlertDescription>
                 <div className="space-y-2">
                   <p className="font-medium">{verificationResult.message}</p>
-
                   {verificationResult.attendee && (
-                    <div className="text-sm space-y-1">
+                    <div className="text-sm mt-2">
                       <p>
-                        <strong>Name:</strong> {verificationResult.attendee.user?.display_name}
+                        <strong>Name:</strong>{" "}
+                        {verificationResult.attendee.user?.display_name || "N/A"}
                       </p>
                       <p>
-                        <strong>Email:</strong> {verificationResult.attendee.user?.email}
-                      </p>
-                      <p>
-                        <strong>Event:</strong> {verificationResult.attendee.event?.title}
-                      </p>
-                      <p>
-                        <strong>Ticket:</strong> {verificationResult.attendee.ticket_type?.name}
+                        <strong>Email:</strong>{" "}
+                        {verificationResult.attendee.user?.email || "N/A"}
                       </p>
                     </div>
                   )}

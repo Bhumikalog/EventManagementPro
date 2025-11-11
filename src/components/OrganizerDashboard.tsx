@@ -95,12 +95,12 @@ export default function OrganizerDashboard() {
         <CardTitle className="text-3xl">{stats.allocatedResources}</CardTitle>
       </CardHeader>
     </Card>
-    <Card>
+    {/*<Card>
       <CardHeader className="pb-3">
         <CardDescription>Checked-In Participants</CardDescription>
         <CardTitle className="text-3xl">{stats.checkedInParticipants}</CardTitle>
       </CardHeader>
-    </Card>
+    </Card>*/}
   </div>
 
         <Tabs defaultValue="events" className="space-y-4">
