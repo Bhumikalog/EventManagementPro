@@ -661,20 +661,6 @@ export default function EventManager({ onUpdate }: { onUpdate: () => void }) {
                 </div>
               </div>
 
-              {/* Capacity Override */}
-              <div className="space-y-2">
-                <Label htmlFor="capacity">Capacity Override (optional)</Label>
-                <Input
-                  id="capacity"
-                  name="capacity"
-                  type="number"
-                  min="1"
-                  disabled={loading}
-                  placeholder="Leave empty to use venue capacity"
-                  defaultValue={editingEvent?.capacity || ''}
-                />
-              </div>
-
               {/* Ticket Types */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

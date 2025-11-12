@@ -61,7 +61,6 @@ export default function RegistrationsList() {
                     <TableHead>Event Date</TableHead>
                     <TableHead>Ticket Type</TableHead>
                     <TableHead>Registration Status</TableHead>
-                    <TableHead>Check-In</TableHead>
                     <TableHead>Registered</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -84,16 +83,7 @@ export default function RegistrationsList() {
                           {reg.registration_status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        {reg.checked_in_at ? (
-                          <div className="flex items-center gap-2 text-green-600">
-                            <CheckCircle className="h-4 w-4" />
-                            {format(new Date(reg.checked_in_at), 'Pp')}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
+                      
                       <TableCell>
                         {format(new Date(reg.created_at), 'PP')}
                       </TableCell>
