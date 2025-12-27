@@ -39,33 +39,25 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React 18**
-- **TypeScript**
-- **Vite**
+- React 18
+- TypeScript
+- Vite
 
 ### Styling & UI
-- **Tailwind CSS**
-- **shadcn/ui**
-- **Lucide React**
+- Tailwind CSS
+- shadcn/ui
+- Lucide React
 
 ### Backend & Infrastructure
-- **Supabase** (PostgreSQL, Auth, Realtime, Storage)
-- **Supabase Edge Functions (Deno)** for payments & role management
+- Supabase (PostgreSQL, Auth, Realtime, Storage)
+- Supabase Edge Functions (Deno) for payments & role management
 
 ### State Management
-- **TanStack Query (React Query)**
+- TanStack Query (React Query)
 
 ### Testing
-- **Vitest**
-- **JSDOM**
-- **Testing Library**
-
----
-
-## 📋 Prerequisites
-- **Node.js** (Latest LTS recommended)
-- **Supabase Account**
-
+- Vitest
+- JSDOM
 ---
 
 ## 🔧 Installation & Setup
